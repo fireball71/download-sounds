@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Download All MP3s</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    body {
+      background-color: #121212;
+      color: #e0e0e0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding-top: 100px;
+    }
+    #download {
+      background-color: #FFD700;
+      color: #121212;
+      border: none;
+      border-radius: 50px;
+      padding: 20px 40px;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+    #download:hover {
+      background-color: #FFC300;
+      transform: scale(1.05);
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Download The Newest Sound Pack</h1>
+  <button id="download">⬇ Download All MP3s</button>
+  <div id="status"></div>
+
+  <script>
+    const GITHUB_USER = "fireball71";
+    const GITHUB_REPO = "Sounds";
+    const GITHUB_BRANCH = "main";
+    const GITHUB_TOKEN = "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"; 
+
+    function updateStatus(msg) {
+      document.getElementById("status").textContent = msg;
+    }
+
+    async function fetchMp3List() {
+      const apiUrl = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1`;
+      const res = await fetch(apiUrl, {
+        headers: { Authorization: `token ${GITHUB_TOKEN}` }
+      });
+      if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
+      const data = await res.json();
+      return data.tree.filter(item => item.path && item.path.endsWith(".mp3"));
+    }
+
+    async function downloadAndZip() {
+      try {
+        updateStatus("Fetching file list...");
+        const files = await fetchMp3List();
+
+        if (files.length === 0) {
+          updateStatus("No MP3 files found in the repo.");
+          return;
+        }
+
+        updateStatus(`Found ${files.length} files. Downloading...`);
+        const zip = new JSZip();
+
+        for (const file of files) {
+          updateStatus(`Downloading: ${file.path}`);
+          const rawUrl = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${file.path}`;
+          const res = await fetch(rawUrl);
+          if (!res.ok) {
+            console.error(`Failed to fetch ${file.path}:`, res.status);
+            continue;
+          }
+          const blob = await res.blob();
+          // Only use the filename, strip any folder paths
+          const filename = file.path.split("/").pop();
+          zip.file(filename, blob);
+        }
+
+        updateStatus("Creating ZIP...");
+        const content = await zip.generateAsync({ type: "blob" });
+
+        updateStatus("Starting download...");
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(content);
+        a.download = "sounds.zip"; // ZIP contains files at root, no folder
+        a.click();
+
+        updateStatus("Download started.");
+      } catch (err) {
+        console.error(err);
+        updateStatus(`Error: ${err.message}`);
+      }
+    }
+
+    document.getElementById("download").onclick = downloadAndZip;
+  </script>
+</body>
+</html>
